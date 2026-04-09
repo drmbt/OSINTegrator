@@ -45,9 +45,12 @@
 - [x] root `pnpm dev` command added to launch both desktop and API together
 - [x] API startup uses the repo-local `apps/api/.venv` directly
 - [x] desktop build, TypeScript checks, Python compile checks, and API smoke test completed
-- [ ] wire the desktop shell to the live FastAPI placeholder endpoints
-- [ ] replace hardcoded desktop placeholder data with API-backed state
+- [x] wire the desktop shell to the live FastAPI placeholder endpoints
+- [x] replace hardcoded desktop placeholder data with API-backed state
+- [x] create a real-name intake flow that hydrates planning, runs, review, dossier, and graph views
 - [ ] add first confidence scoring implementation and review actions
+- [ ] add approve / reject / defer mutations to the review queue
+- [ ] persist case state across app restarts
 
 ## Documentation Rule
 

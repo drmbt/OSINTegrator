@@ -18,12 +18,15 @@ The goal is to keep the repo runnable and understandable without requiring someo
 
 - Root `pnpm dev` command to launch the Electron desktop app and FastAPI backend together.
 - Documentation for the combined dev command, local virtualenv behavior, and current scaffold startup flow.
+- A real-name intake flow that creates a case, submits intake, saves settings, generates a plan, and hydrates the planning, runs, review, dossier, and graph views from the API.
 
 ### Changed
 
 - `pnpm dev:api` now uses `apps/api/.venv` directly, so manual virtualenv activation is not required before launching the backend from root scripts.
 - README and sprint board now reflect the actual scaffold status and current local run instructions.
 - Electron development no longer auto-opens Chromium DevTools unless `OSINTEGRATOR_OPEN_DEVTOOLS=1` is set.
+- The desktop app now uses live scaffold API responses instead of hardcoded placeholder cards.
+- The FastAPI scaffold now supports local CORS in development and generates more useful case-specific stub data from the submitted intake.
 
 ### Fixed
 

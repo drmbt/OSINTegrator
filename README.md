@@ -59,6 +59,21 @@ The root `dev` command starts both:
 - the Electron desktop shell
 - the FastAPI backend
 
+### First Real Test Flow
+
+1. Run `pnpm dev`
+2. Open the `Intake Wizard`
+3. Enter a real name and any optional identifier or notes
+4. Click `Create Live Test Case`
+5. Review the generated:
+   - planning tasks
+   - tool runs
+   - claims and supporting evidence
+   - dossier summary
+   - graph placeholder nodes
+
+This flow is still scaffold-backed, but it now round-trips through the live FastAPI API instead of using hardcoded frontend-only data.
+
 ### Other Useful Commands
 
 ```bash
@@ -124,7 +139,7 @@ This scaffold is aimed at the first runnable slice:
 - store planner preferences and provider settings
 - generate a placeholder plan
 - view claims, evidence, and tool runs through a consistent API contract
-- navigate a desktop shell with dossier, graph, and review placeholders
+- navigate a desktop shell with dossier, graph, and review views hydrated from live scaffold data
 
 ## Repository Status
 

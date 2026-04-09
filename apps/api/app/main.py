@@ -1,4 +1,5 @@
 from fastapi import APIRouter, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from .routes.cases import router as cases_router
 from .routes.claims import router as claims_router
@@ -11,6 +12,14 @@ app = FastAPI(
     title="OSINTegrator API",
     version="0.1.0",
     summary="Scaffold backend for a local-first OSINT IDE.",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 api = APIRouter(prefix="/api")

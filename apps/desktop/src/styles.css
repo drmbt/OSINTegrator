@@ -48,6 +48,16 @@ button {
   padding: 1.5rem;
 }
 
+.status-strip {
+  margin-bottom: 1rem;
+}
+
+.status-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
 .eyebrow {
   margin: 0;
   text-transform: uppercase;
@@ -170,6 +180,10 @@ select {
   color: inherit;
 }
 
+select {
+  appearance: none;
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
@@ -196,6 +210,14 @@ select {
   justify-content: space-between;
   gap: 1rem;
   align-items: flex-start;
+}
+
+.checklist-editable li {
+  align-items: center;
+}
+
+.checklist-editable select {
+  max-width: 150px;
 }
 
 .detail-list li {
@@ -267,6 +289,16 @@ select {
   padding: 1rem;
 }
 
+.evidence-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.evidence-card {
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .graph-placeholder {
   display: flex;
   flex-wrap: wrap;
@@ -285,6 +317,22 @@ select {
 .mono {
   font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
   font-size: 0.9rem;
+}
+
+.empty-state {
+  padding: 1rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(244, 247, 251, 0.7);
+}
+
+.error-text {
+  color: #ffb3b3;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 @media (max-width: 1100px) {

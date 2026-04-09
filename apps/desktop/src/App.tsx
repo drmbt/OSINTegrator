@@ -6,9 +6,28 @@ import {
   DEFAULT_SCOPE_CHECKLIST,
   PROVIDERS,
   type CaseMode,
+  type CaseRecord,
+  type ClaimRecord,
+  type EvidenceRecord,
   type PriorityState,
-  type ProviderSettings
+  type ProviderSettings,
+  type ScopeChecklist,
+  type ToolRunRecord
 } from "@osintegrator/shared";
+
+import {
+  createCase,
+  createPlan,
+  fetchClaims,
+  fetchEvidence,
+  fetchHealth,
+  fetchSettings,
+  fetchToolRuns,
+  updateCaseSettings,
+  submitIntake,
+  type HealthResponse,
+  type PlanResponse
+} from "./api";
 
 type ViewKey =
   | "intake"
@@ -38,17 +57,17 @@ const views: Array<{ key: ViewKey; label: string; blurb: string }> = [
   {
     key: "review",
     label: "Review Queue",
-    blurb: "Approve or reject evidence-backed claims before canonization."
+    blurb: "Inspect the scaffold claims and their supporting evidence."
   },
   {
     key: "dossier",
     label: "Dossier Workspace",
-    blurb: "Switch between canonical and provisional knowledge layers."
+    blurb: "See the current investigation summary for the seeded target."
   },
   {
     key: "graph",
     label: "Graph View",
-    blurb: "Inspect people, organizations, and relationships visually."
+    blurb: "Inspect placeholder nodes derived from the current case data."
   },
   {
     key: "settings",
@@ -56,57 +75,6 @@ const views: Array<{ key: ViewKey; label: string; blurb: string }> = [
     blurb: "Configure provider selection, model settings, and thresholds."
   }
 ];
-
-const planSteps = [
-  {
-    title: "Identity Resolution Pass",
-    detail: "Normalize names, aliases, usernames, and profile URLs."
-  },
-  {
-    title: "Professional Trace Pass",
-    detail: "Prioritize LinkedIn, employers, education, and public bios."
-  },
-  {
-    title: "Public Writing Pass",
-    detail: "Search for authored articles, interviews, and press mentions."
-  },
-  {
-    title: "Graph Projection",
-    detail: "Convert approved findings into dossier and relationship views."
-  }
-];
-
-const toolRuns = [
-  { name: "planner.normalize_intake", status: "completed", summary: "Created 7 candidate signals and 4 task groups." },
-  { name: "worker.stub_sherlock", status: "queued", summary: "Waiting for username batch and provider settings." },
-  { name: "worker.stub_spiderfoot", status: "queued", summary: "Ready for domain and social footprint exploration." }
-];
-
-const reviewItems = [
-  {
-    claim: "Jane Example is likely associated with Acme Labs.",
-    status: CLAIM_STATUSES[0],
-    confidence: 0.78,
-    evidence: "Matched profile summary and company domain on two sources."
-  },
-  {
-    claim: "jane.example@acme.test appears to be a professional contact point.",
-    status: CLAIM_STATUSES[3],
-    confidence: 0.86,
-    evidence: "Stub adapter surfaced a repeated domain pattern and LinkedIn hint."
-  }
-];
-
-const dossierBlocks = [
-  "Identity summary",
-  "Employers and roles",
-  "Education",
-  "Public writing",
-  "Social accounts",
-  "Notes and unresolved contradictions"
-];
-
-const graphNodes = ["Target", "Employer", "University", "LinkedIn", "Article"];
 
 const defaultSettings: ProviderSettings = {
   provider: "openai",
@@ -121,6 +89,188 @@ function App() {
   const [activeView, setActiveView] = React.useState<ViewKey>("intake");
   const [mode, setMode] = React.useState<CaseMode>("review");
   const [providerSettings, setProviderSettings] = React.useState(defaultSettings);
+  const [scopeChecklist, setScopeChecklist] = React.useState<ScopeChecklist>({
+    ...DEFAULT_SCOPE_CHECKLIST
+  });
+  const [targetName, setTargetName] = React.useState("");
+  const [knownIdentifier, setKnownIdentifier] = React.useState("");
+  const [contextNotes, setContextNotes] = React.useState("");
+  const [health, setHealth] = React.useState<HealthResponse | null>(null);
+  const [healthError, setHealthError] = React.useState<string | null>(null);
+  const [caseRecord, setCaseRecord] = React.useState<CaseRecord | null>(null);
+  const [plan, setPlan] = React.useState<PlanResponse | null>(null);
+  const [claims, setClaims] = React.useState<ClaimRecord[]>([]);
+  const [evidence, setEvidence] = React.useState<EvidenceRecord[]>([]);
+  const [toolRuns, setToolRuns] = React.useState<ToolRunRecord[]>([]);
+  const [statusMessage, setStatusMessage] = React.useState(
+    "Seed a name to create a live scaffold case."
+  );
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isSavingSettings, setIsSavingSettings] = React.useState(false);
+
+  React.useEffect(() => {
+    void (async () => {
+      try {
+        const response = await fetchHealth();
+        setHealth(response);
+      } catch (error) {
+        setHealthError(toErrorMessage(error));
+      }
+    })();
+  }, []);
+
+  React.useEffect(() => {
+    setProviderSettings((current) => ({
+      ...current,
+      modeDefault: mode
+    }));
+  }, [mode]);
+
+  const evidenceByClaim = React.useMemo(() => {
+    const grouped = new Map<string, EvidenceRecord[]>();
+
+    for (const item of evidence) {
+      const existing = grouped.get(item.claimId) ?? [];
+      existing.push(item);
+      grouped.set(item.claimId, existing);
+    }
+
+    return grouped;
+  }, [evidence]);
+
+  const dossierCards = React.useMemo(() => {
+    if (!caseRecord) {
+      return [];
+    }
+
+    const statuses = CLAIM_STATUSES.map((status) => ({
+      label: formatLabel(status),
+      count: claims.filter((claim) => claim.status === status).length
+    }));
+
+    return [
+      {
+        title: "Identity summary",
+        body: `${caseRecord.name} is the active scaffold target in ${caseRecord.mode} mode.`
+      },
+      {
+        title: "Current signals",
+        body: [knownIdentifier, contextNotes].filter(Boolean).join(" | ") || "No extra signals yet."
+      },
+      {
+        title: "Claim distribution",
+        body: statuses.map((item) => `${item.label}: ${item.count}`).join(" | ")
+      },
+      {
+        title: "Planner readiness",
+        body: plan
+          ? `${plan.tasks.length} planned tasks are ready for the next scaffold pass.`
+          : "No plan has been generated yet."
+      }
+    ];
+  }, [caseRecord, claims, contextNotes, knownIdentifier, plan]);
+
+  const graphNodes = React.useMemo(() => {
+    if (!caseRecord) {
+      return [];
+    }
+
+    const claimNodes = claims.slice(0, 5).map((claim) => ({
+      id: claim.id,
+      label: formatLabel(claim.predicate)
+    }));
+
+    return [{ id: caseRecord.id, label: caseRecord.name }, ...claimNodes];
+  }, [caseRecord, claims]);
+
+  async function handleSeedCase(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!targetName.trim()) {
+      setErrorMessage("Enter at least one real name to create a scaffold case.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    setStatusMessage("Creating case, saving intake, and generating a live scaffold plan...");
+
+    try {
+      const createdCase = await createCase({
+        name: targetName.trim(),
+        description: contextNotes.trim(),
+        mode,
+        autoAcceptThreshold: providerSettings.autoAcceptThreshold,
+        scopeChecklist
+      });
+
+      setCaseRecord(createdCase);
+
+      await submitIntake(createdCase.id, {
+        rawSignals: [targetName.trim(), knownIdentifier.trim()].filter(Boolean),
+        notes: contextNotes.trim(),
+        priorities: scopeChecklist
+      });
+
+      const savedSettings = await updateCaseSettings(createdCase.id, {
+        ...providerSettings,
+        modeDefault: mode
+      });
+      setProviderSettings(savedSettings.settings);
+
+      await refreshCaseData(createdCase.id);
+      setStatusMessage(
+        `Created ${createdCase.id} for ${createdCase.name} and hydrated the scaffold views from the API.`
+      );
+      setActiveView("planning");
+    } catch (error) {
+      setErrorMessage(toErrorMessage(error));
+      setStatusMessage("The scaffold could not complete the case seed flow.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleSaveSettings() {
+    if (!caseRecord) {
+      setStatusMessage("Create a case first, then save the settings into that case.");
+      return;
+    }
+
+    setIsSavingSettings(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await updateCaseSettings(caseRecord.id, {
+        ...providerSettings,
+        modeDefault: mode
+      });
+      setProviderSettings(response.settings);
+      setStatusMessage(`Saved provider settings into ${caseRecord.id}.`);
+    } catch (error) {
+      setErrorMessage(toErrorMessage(error));
+    } finally {
+      setIsSavingSettings(false);
+    }
+  }
+
+  async function refreshCaseData(caseId: string) {
+    const [nextPlan, nextClaims, nextEvidence, nextToolRuns, nextSettings] =
+      await Promise.all([
+        createPlan(caseId),
+        fetchClaims(caseId),
+        fetchEvidence(caseId),
+        fetchToolRuns(caseId),
+        fetchSettings(caseId)
+      ]);
+
+    setPlan(nextPlan);
+    setClaims(nextClaims);
+    setEvidence(nextEvidence);
+    setToolRuns(nextToolRuns);
+    setProviderSettings(nextSettings.settings);
+  }
 
   return (
     <div className="shell">
@@ -141,13 +291,7 @@ function App() {
               <button
                 key={caseMode}
                 className={caseMode === mode ? "tab active" : "tab"}
-                onClick={() => {
-                  setMode(caseMode);
-                  setProviderSettings((current) => ({
-                    ...current,
-                    modeDefault: caseMode
-                  }));
-                }}
+                onClick={() => setMode(caseMode)}
                 type="button"
               >
                 {caseMode}
@@ -155,9 +299,20 @@ function App() {
             ))}
           </div>
           <p className="small">
-            Review Mode holds findings for approval. Agent Mode auto-promotes
-            high-confidence findings into the provisional layer.
+            Review Mode keeps findings pending. Agent Mode allows provisional
+            promotion in the scaffold responses.
           </p>
+        </div>
+
+        <div className="mode-card">
+          <span className="eyebrow">Connection</span>
+          <div className="pill-row">
+            <span className="pill">
+              API: {health ? health.status : healthError ? "offline" : "checking"}
+            </span>
+            <span className="pill">Case: {caseRecord?.id ?? "none"}</span>
+          </div>
+          {healthError ? <p className="small error-text">{healthError}</p> : null}
         </div>
 
         <nav className="nav">
@@ -178,7 +333,7 @@ function App() {
       <main className="content">
         <header className="topbar">
           <div>
-            <span className="eyebrow">Scaffold Status</span>
+            <span className="eyebrow">Live Scaffold</span>
             <h2>{views.find((view) => view.key === activeView)?.label}</h2>
           </div>
           <div className="pill-row">
@@ -190,41 +345,86 @@ function App() {
           </div>
         </header>
 
+        <section className="status-strip">
+          <div className="panel status-panel">
+            <strong>Status</strong>
+            <p>{statusMessage}</p>
+            {errorMessage ? <p className="error-text">{errorMessage}</p> : null}
+          </div>
+        </section>
+
         {activeView === "intake" && (
           <section className="grid">
             <article className="panel span-two">
               <h3>Investigation Intake</h3>
               <p>
-                Seed this case with names, aliases, emails, social links, timeline
-                notes, and narrative fragments. The scaffold keeps these as raw signals
-                before any canonical claim is created.
+                Enter a real target name and any known identifier. Submitting this form
+                creates a scaffold case, stores the intake, generates a plan, and fills
+                the other views from the live API.
               </p>
-              <div className="signal-grid">
+              <form className="signal-grid" onSubmit={handleSeedCase}>
                 <label>
                   Target name
-                  <input placeholder="Jane Example" />
+                  <input
+                    placeholder="Jane Example"
+                    value={targetName}
+                    onChange={(event) => setTargetName(event.target.value)}
+                  />
                 </label>
                 <label>
                   Known identifier
-                  <input placeholder="email, username, phone, URL" />
+                  <input
+                    placeholder="email, username, phone, URL"
+                    value={knownIdentifier}
+                    onChange={(event) => setKnownIdentifier(event.target.value)}
+                  />
                 </label>
                 <label className="full-width">
                   Context notes
                   <textarea
                     rows={5}
                     placeholder="Worked at Acme Labs, graduated from State University, likely wrote about biotech investing."
+                    value={contextNotes}
+                    onChange={(event) => setContextNotes(event.target.value)}
                   />
                 </label>
-              </div>
+                <div className="full-width button-row">
+                  <button className="tab active" disabled={isSubmitting} type="submit">
+                    {isSubmitting ? "Seeding Case..." : "Create Live Test Case"}
+                  </button>
+                  {caseRecord ? (
+                    <button
+                      className="tab"
+                      onClick={() => void refreshCaseData(caseRecord.id)}
+                      type="button"
+                    >
+                      Refresh From API
+                    </button>
+                  ) : null}
+                </div>
+              </form>
             </article>
 
             <article className="panel">
               <h3>Scope Checklist</h3>
-              <ul className="checklist">
-                {Object.entries(DEFAULT_SCOPE_CHECKLIST).map(([key, value]) => (
+              <ul className="checklist checklist-editable">
+                {Object.entries(scopeChecklist).map(([key, value]) => (
                   <li key={key}>
                     <span>{formatLabel(key)}</span>
-                    <PriorityBadge state={value} />
+                    <select
+                      value={value}
+                      onChange={(event) =>
+                        setScopeChecklist((current) => ({
+                          ...current,
+                          [key]: event.target.value as PriorityState
+                        }))
+                      }
+                    >
+                      <option value="required">required</option>
+                      <option value="preferred">preferred</option>
+                      <option value="ignore">ignore</option>
+                      <option value="unknown">unknown</option>
+                    </select>
                   </li>
                 ))}
               </ul>
@@ -236,24 +436,43 @@ function App() {
           <section className="grid">
             <article className="panel span-two">
               <h3>Grouped Task Plan</h3>
-              <div className="timeline">
-                {planSteps.map((step, index) => (
-                  <div key={step.title} className="timeline-item">
-                    <span className="step-index">{index + 1}</span>
-                    <div>
-                      <strong>{step.title}</strong>
-                      <p>{step.detail}</p>
+              {plan ? (
+                <div className="timeline">
+                  {plan.tasks.map((task, index) => (
+                    <div key={task.name} className="timeline-item">
+                      <span className="step-index">{index + 1}</span>
+                      <div>
+                        <strong>{formatLabel(task.name)}</strong>
+                        <p>
+                          Tool: <span className="mono">{task.tool}</span> | Inputs:{" "}
+                          {task.inputs.join(", ")}
+                        </p>
+                        <p>
+                          Priority: {task.priority.toFixed(2)} | Auto-runnable:{" "}
+                          {task.autoRunnable ? "yes" : "no"}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState text="Create a case from the intake wizard to generate the first plan." />
+              )}
             </article>
             <article className="panel">
               <h3>Planner Notes</h3>
               <ul className="detail-list">
-                <li>Required checklist items are scheduled first.</li>
-                <li>Identity collisions should pause Agent Mode.</li>
-                <li>Low-risk enrichment tasks can loop automatically.</li>
+                <li>
+                  Required checklist items are prioritized first and affect task ordering.
+                </li>
+                <li>
+                  Agent Mode makes enrichment tasks auto-runnable when the scaffold marks
+                  them as low-risk.
+                </li>
+                <li>
+                  This is the next slice to extend with real adapters after the live test
+                  case flow feels good.
+                </li>
               </ul>
             </article>
           </section>
@@ -263,15 +482,19 @@ function App() {
           <section className="grid">
             <article className="panel span-two">
               <h3>Run Monitor</h3>
-              <ul className="detail-list">
-                {toolRuns.map((run) => (
-                  <li key={run.name}>
-                    <strong>{run.name}</strong>
-                    <span className="mono">{run.status}</span>
-                    <p>{run.summary}</p>
-                  </li>
-                ))}
-              </ul>
+              {toolRuns.length > 0 ? (
+                <ul className="detail-list">
+                  {toolRuns.map((run) => (
+                    <li key={run.id}>
+                      <strong>{run.toolName}</strong>
+                      <span className="mono">{run.status}</span>
+                      <p>{run.summary}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyState text="No tool runs yet. Submit intake to populate the run monitor." />
+              )}
             </article>
             <article className="panel">
               <h3>Loop Controls</h3>
@@ -287,27 +510,44 @@ function App() {
 
         {activeView === "review" && (
           <section className="grid">
-            {reviewItems.map((item) => (
-              <article key={item.claim} className="panel">
-                <h3>{item.claim}</h3>
-                <p>{item.evidence}</p>
-                <div className="pill-row">
-                  <span className="pill">{item.status}</span>
-                  <span className="pill">{item.confidence.toFixed(2)}</span>
-                </div>
-                <div className="button-row">
-                  <button className="tab active" type="button">
-                    Approve
-                  </button>
-                  <button className="tab" type="button">
-                    Reject
-                  </button>
-                  <button className="tab" type="button">
-                    Defer
-                  </button>
-                </div>
+            {claims.length > 0 ? (
+              claims.map((item) => (
+                <article key={item.id} className="panel">
+                  <h3>
+                    {item.subject} · {formatLabel(item.predicate)}
+                  </h3>
+                  <p>{item.value}</p>
+                  <div className="pill-row">
+                    <span className="pill">{item.status}</span>
+                    <span className="pill">{item.confidence.toFixed(2)}</span>
+                  </div>
+                  <div className="evidence-list">
+                    {(evidenceByClaim.get(item.id) ?? []).map((evidenceItem) => (
+                      <div key={evidenceItem.id} className="mini-card evidence-card">
+                        <strong>{evidenceItem.sourceType}</strong>
+                        <p>{evidenceItem.summary}</p>
+                        <span className="mono">{evidenceItem.sourceRef}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="button-row">
+                    <button className="tab" disabled type="button">
+                      Approve
+                    </button>
+                    <button className="tab" disabled type="button">
+                      Reject
+                    </button>
+                    <button className="tab" disabled type="button">
+                      Defer
+                    </button>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <article className="panel span-two">
+                <EmptyState text="The review queue will populate after you seed a live case." />
               </article>
-            ))}
+            )}
           </section>
         )}
 
@@ -316,23 +556,30 @@ function App() {
             <article className="panel span-two">
               <h3>Dossier Workspace</h3>
               <p>
-                Canonical and provisional findings will converge here once the review
-                queue and graph projection are wired into persistence.
+                This view now reflects the active case, its current scaffold claims, and
+                the latest generated plan from the API.
               </p>
               <div className="card-grid">
-                {dossierBlocks.map((block) => (
-                  <div key={block} className="mini-card">
-                    <strong>{block}</strong>
-                    <p>Placeholder data block for the first vertical slice.</p>
-                  </div>
-                ))}
+                {dossierCards.length > 0 ? (
+                  dossierCards.map((block) => (
+                    <div key={block.title} className="mini-card">
+                      <strong>{block.title}</strong>
+                      <p>{block.body}</p>
+                    </div>
+                  ))
+                ) : (
+                  <EmptyState text="No dossier yet. Seed a case from the intake tab." />
+                )}
               </div>
             </article>
             <article className="panel">
               <h3>Status</h3>
-              <p>Canonical claims: 0</p>
-              <p>Provisional claims: 2</p>
-              <p>Pending claims: 4</p>
+              <p>Approved claims: {claims.filter((claim) => claim.status === "approved").length}</p>
+              <p>
+                Provisional claims:{" "}
+                {claims.filter((claim) => claim.status === "provisional").length}
+              </p>
+              <p>Pending claims: {claims.filter((claim) => claim.status === "pending").length}</p>
             </article>
           </section>
         )}
@@ -341,20 +588,24 @@ function App() {
           <section className="grid">
             <article className="panel span-two">
               <h3>Graph Placeholder</h3>
-              <div className="graph-placeholder">
-                {graphNodes.map((node) => (
-                  <div key={node} className="graph-node">
-                    {node}
-                  </div>
-                ))}
-              </div>
+              {graphNodes.length > 0 ? (
+                <div className="graph-placeholder">
+                  {graphNodes.map((node) => (
+                    <div key={node.id} className="graph-node">
+                      {node.label}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState text="Graph nodes will appear after the first case is created." />
+              )}
             </article>
             <article className="panel">
               <h3>Projection Notes</h3>
               <ul className="detail-list">
-                <li>Postgres remains the canonical store.</li>
-                <li>Memgraph receives reviewed or provisional projections.</li>
-                <li>Graph labels should preserve claim status and provenance.</li>
+                <li>Postgres remains the intended canonical store.</li>
+                <li>Memgraph remains the future graph projection target.</li>
+                <li>This scaffold graph now derives from the live case and claim bundle.</li>
               </ul>
             </article>
           </section>
@@ -454,6 +705,16 @@ function App() {
                     }
                   />
                 </label>
+                <div className="full-width button-row">
+                  <button
+                    className="tab active"
+                    disabled={!caseRecord || isSavingSettings}
+                    onClick={() => void handleSaveSettings()}
+                    type="button"
+                  >
+                    {isSavingSettings ? "Saving..." : "Save Settings To Active Case"}
+                  </button>
+                </div>
               </div>
             </article>
             <article className="panel">
@@ -461,7 +722,7 @@ function App() {
               <ul className="detail-list">
                 <li>Provider type is separate from API key and base URL fields.</li>
                 <li>Hosted providers use API keys; Ollama uses a local URL and model.</li>
-                <li>Mode defaults and thresholds are case-scoped planner inputs.</li>
+                <li>Settings now round-trip through the active case API route.</li>
               </ul>
             </article>
           </section>
@@ -471,12 +732,20 @@ function App() {
   );
 }
 
-function PriorityBadge({ state }: { state: PriorityState }) {
-  return <span className={`priority priority-${state}`}>{state}</span>;
+function EmptyState({ text }: { text: string }) {
+  return <div className="empty-state">{text}</div>;
 }
 
 function formatLabel(input: string) {
   return input.replace(/([A-Z])/g, " $1").replace(/^./, (value) => value.toUpperCase());
+}
+
+function toErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Something went wrong while talking to the scaffold API.";
 }
 
 export default App;
