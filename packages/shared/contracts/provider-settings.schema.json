@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProviderSettings",
+  "type": "object",
+  "required": ["provider", "modeDefault", "autoAcceptThreshold"],
+  "properties": {
+    "provider": {
+      "type": "string",
+      "enum": ["openai", "anthropic", "gemini", "ollama"]
+    },
+    "apiKey": {
+      "type": "string"
+    },
+    "baseUrl": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "modeDefault": {
+      "type": "string",
+      "enum": ["review", "agent"]
+    },
+    "autoAcceptThreshold": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  },
+  "additionalProperties": false
+}

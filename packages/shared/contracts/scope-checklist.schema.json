@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ScopeChecklist",
+  "type": "object",
+  "additionalProperties": {
+    "type": "string",
+    "enum": ["required", "preferred", "ignore", "unknown"]
+  }
+}

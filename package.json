@@ -1,0 +1,16 @@
+{
+  "name": "osintegrator",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.12.3",
+  "scripts": {
+    "dev:desktop": "pnpm --dir apps/desktop dev",
+    "build:desktop": "pnpm --dir apps/desktop build",
+    "typecheck:desktop": "pnpm --dir apps/desktop typecheck",
+    "build:shared": "pnpm --dir packages/shared build",
+    "dev:api": "cd apps/api && python3 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
+    "check:api": "cd apps/api && python3 -m compileall app",
+    "check:docker": "sh -c 'if command -v docker >/dev/null 2>&1; then docker compose -f infra/docker-compose.yml config; else echo \"Docker CLI not installed; skipping compose validation.\"; fi'",
+    "check": "pnpm build:shared && pnpm typecheck:desktop && pnpm check:api && pnpm check:docker"
+  }
+}

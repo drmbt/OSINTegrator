@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CaseRecord",
+  "type": "object",
+  "required": ["id", "name", "description", "mode", "autoAcceptThreshold", "scopeChecklist"],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["review", "agent"]
+    },
+    "autoAcceptThreshold": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "scopeChecklist": {
+      "$ref": "./scope-checklist.schema.json"
+    }
+  },
+  "additionalProperties": false
+}

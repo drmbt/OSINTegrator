@@ -1,0 +1,52 @@
+# Node / pnpm
+node_modules/
+.pnpm-store/
+dist/
+build/
+.vite/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS / Editor
+.DS_Store
+.idea/
+.vscode/
+
+# Data and artifacts
+data/artifacts/*
+!data/artifacts/.gitkeep
+*.sqlite3
+*.db
+
+# Docker / local volumes
+postgres-data/
+memgraph-data/
+redis-data/
+
+# Electron
+apps/desktop/out/
+apps/desktop/release/
+
+# Coverage / caches
+coverage/
+.cache/
+tmp/

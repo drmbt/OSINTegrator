@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "osintegrator-workers"
+version = "0.1.0"
+description = "Stub worker package for OSINTegrator tool adapters."
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+include = ["osintegrator_workers*"]
