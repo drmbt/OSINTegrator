@@ -38,38 +38,74 @@ Hosted providers use an API key field. Ollama uses a base URL and model identifi
 - Python 3.11+
 - Docker Desktop or compatible `docker compose`
 
-### Install JavaScript Workspace Dependencies
+### One-Time Setup on a Fresh Clone
 
 ```bash
 pnpm install
-```
-
-### Create a Python Virtual Environment
-
-```bash
 cd apps/api
 python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+./.venv/bin/pip install -e .
+cd ../..
 ```
 
-### Start the Desktop Shell
+### Running the Scaffold
+
+```bash
+pnpm dev
+```
+
+The root `dev` command starts both:
+
+- the Electron desktop shell
+- the FastAPI backend
+
+### Other Useful Commands
 
 ```bash
 pnpm dev:desktop
-```
-
-### Start the API
-
-```bash
 pnpm dev:api
+pnpm check
+pnpm build:desktop
 ```
 
-### Validate Infrastructure Config
+### Command Guide
+
+- `pnpm dev`
+  Starts both the desktop app and API together.
+- `pnpm dev:desktop`
+  Starts just the Electron/Vite desktop shell.
+- `pnpm dev:api`
+  Starts just the FastAPI backend using `apps/api/.venv` directly, so you do not need to manually activate the virtual environment.
+- `OSINTEGRATOR_OPEN_DEVTOOLS=1 pnpm dev:desktop`
+  Opens Chromium DevTools automatically during desktop development when you explicitly want it.
+- `pnpm check`
+  Runs the shared build, desktop typecheck, API compile check, and Docker config validation when Docker is available.
+- `pnpm check:docker`
+  Validates `infra/docker-compose.yml` when Docker is installed on the machine. If Docker is missing from `PATH`, the check is skipped.
+
+By default, DevTools no longer auto-open on startup. This avoids noisy Electron DevTools protocol errors that were showing up even though the scaffold app itself was fine.
+
+### Current Local Workspace Notes
+
+In this working copy, the following setup has already been done:
+
+- `pnpm install`
+- creation of `apps/api/.venv`
+- `./.venv/bin/pip install -e .` inside `apps/api`
+
+That means you can launch the scaffold immediately with:
 
 ```bash
-pnpm check:docker
+pnpm dev
 ```
+
+### Provider Requirements
+
+You do not need an API key or a local Ollama instance to run the current scaffold.
+
+- The settings page already models `openai`, `anthropic`, `gemini`, and `ollama`.
+- Those settings are placeholders right now.
+- The current desktop shell does not yet call live LLM providers.
 
 ## Working Model
 
@@ -93,3 +129,13 @@ This scaffold is aimed at the first runnable slice:
 ## Repository Status
 
 This repo was initialized as its own git repository inside `/Users/vincentnaples/Documents/github/OSINTegrator` so it no longer inherits the parent worktree.
+
+## Documentation Maintenance Rule
+
+When preparing a commit that changes user-facing behavior, setup, workflow, or milestone status since the last push to `origin`, update the relevant project docs in the same change set:
+
+- `README.md` for install, run, setup, and usage changes
+- `docs/sprint-board.md` for progress and next-step status
+- `CHANGELOG.md` for a concise summary of meaningful project changes
+
+This rule is especially important for publish requests. If a commit changes how the project is launched, configured, verified, or understood, these documents should be reviewed and updated before pushing.

@@ -6,7 +6,7 @@ install:
 	pnpm install
 
 api:
-	cd apps/api && python3 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+	cd apps/api && ./.venv/bin/python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 desktop:
 	pnpm --dir apps/desktop dev

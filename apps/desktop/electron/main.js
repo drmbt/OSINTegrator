@@ -18,10 +18,13 @@ function createWindow() {
   });
 
   const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? "http://127.0.0.1:5173";
+  const shouldOpenDevTools = process.env.OSINTEGRATOR_OPEN_DEVTOOLS === "1";
 
   if (!app.isPackaged) {
     win.loadURL(devServerUrl);
-    win.webContents.openDevTools({ mode: "detach" });
+    if (shouldOpenDevTools) {
+      win.webContents.openDevTools({ mode: "detach" });
+    }
     return;
   }
 
